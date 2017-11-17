@@ -2666,6 +2666,7 @@ weston_output_schedule_repaint(struct weston_output *output)
 	struct weston_compositor *compositor = output->compositor;
 	struct wl_event_loop *loop;
 
+  weston_log("hkps here %s %d\n", __func__, __LINE__);
 	if (compositor->state == WESTON_COMPOSITOR_SLEEPING ||
 	    compositor->state == WESTON_COMPOSITOR_OFFSCREEN)
 		return;
@@ -2673,6 +2674,7 @@ weston_output_schedule_repaint(struct weston_output *output)
 	if (!output->repaint_needed)
 		TL_POINT("core_repaint_req", TLP_OUTPUT(output), TLP_END);
 
+  weston_log("hkps here %s %d\n", __func__, __LINE__);
 	loop = wl_display_get_event_loop(compositor->wl_display);
 	output->repaint_needed = true;
 
@@ -2683,6 +2685,7 @@ weston_output_schedule_repaint(struct weston_output *output)
 	if (output->repaint_status != REPAINT_NOT_SCHEDULED)
 		return;
 
+  weston_log("hkps here %s %d\n", __func__, __LINE__);
 	output->repaint_status = REPAINT_BEGIN_FROM_IDLE;
 	wl_event_loop_add_idle(loop, idle_repaint, output);
 	TL_POINT("core_repaint_enter_loop", TLP_OUTPUT(output), TLP_END);
@@ -4456,6 +4459,8 @@ weston_output_transform_scale_init(struct weston_output *output, uint32_t transf
 	output->native_scale = scale;
 	output->current_scale = scale;
 
+  weston_log("output width %d, height %d\n", output->width, output->height);
+  weston_log("output mode width %d, height %d\n", output->current_mode->width, output->current_mode->height);
 	convert_size_by_transform_scale(&output->width, &output->height,
 					output->current_mode->width,
 					output->current_mode->height,
@@ -5626,6 +5631,7 @@ weston_compositor_get_user_data(struct weston_compositor *compositor)
 
 static const char * const backend_map[] = {
 	[WESTON_BACKEND_DRM] =		"drm-backend.so",
+	[WESTON_BACKEND_IAHWC] =		"iahwc-backend.so",
 	[WESTON_BACKEND_FBDEV] =	"fbdev-backend.so",
 	[WESTON_BACKEND_HEADLESS] =	"headless-backend.so",
 	[WESTON_BACKEND_RDP] =		"rdp-backend.so",
