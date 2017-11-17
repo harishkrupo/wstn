@@ -1183,6 +1183,7 @@ drm_output_repaint(struct weston_output *output_base,
 	struct drm_mode *mode;
 	int ret = 0;
 
+  weston_log("hkps here: %s %d\n", __func__, __LINE__);
 	if (output->disable_pending || output->destroy_pending)
 		return -1;
 
@@ -1198,10 +1199,12 @@ drm_output_repaint(struct weston_output *output_base,
 		output->cursor_plane.y = INT32_MIN;
 	}
 
+  weston_log("hkps here: %s %d\n", __func__, __LINE__);
 	drm_output_render(output, damage);
 	if (!output->fb_pending)
 		return -1;
 
+  weston_log("hkps here: %s %d\n", __func__, __LINE__);
 	mode = container_of(output->base.current_mode, struct drm_mode, base);
 	if (output->state_invalid || !output->fb_current ||
 	    output->fb_current->stride != output->fb_pending->stride) {
@@ -1218,6 +1221,7 @@ drm_output_repaint(struct weston_output *output_base,
 		output->state_invalid = false;
 	}
 
+  weston_log("hkps here: %s %d\n", __func__, __LINE__);
 	if (drmModePageFlip(backend->drm.fd, output->crtc_id,
 			    output->fb_pending->fb_id,
 			    DRM_MODE_PAGE_FLIP_EVENT, output) < 0) {
@@ -1225,6 +1229,7 @@ drm_output_repaint(struct weston_output *output_base,
 		goto err_pageflip;
 	}
 
+  weston_log("hkps here: %s %d\n", __func__, __LINE__);
 	output->fb_last = output->fb_current;
 	output->fb_current = output->fb_pending;
 	output->fb_pending = NULL;
@@ -1232,12 +1237,14 @@ drm_output_repaint(struct weston_output *output_base,
 	assert(!output->page_flip_pending);
 	output->page_flip_pending = 1;
 
+  weston_log("hkps here: %s %d\n", __func__, __LINE__);
 	if (output->pageflip_timer)
 		wl_event_source_timer_update(output->pageflip_timer,
 		                             backend->pageflip_timeout);
 
 	drm_output_set_cursor(output);
 
+  weston_log("hkps here: %s %d\n", __func__, __LINE__);
 	/*
 	 * Now, update all the sprite surfaces
 	 */
@@ -1288,6 +1295,7 @@ drm_output_repaint(struct weston_output *output_base,
 		output->vblank_pending++;
 	}
 
+  weston_log("hkps here: %s %d\n", __func__, __LINE__);
 	return 0;
 
 err_pageflip:
@@ -1317,6 +1325,7 @@ drm_output_start_repaint_loop(struct weston_output *output_base)
 		.request.signal = 0,
 	};
 
+  weston_log("hkps here: %s %d\n", __func__, __LINE__);
 	if (output->disable_pending || output->destroy_pending)
 		return;
 
@@ -1331,6 +1340,7 @@ drm_output_start_repaint_loop(struct weston_output *output_base)
 	if (output->state_invalid)
 		goto finish_frame;
 
+  weston_log("hkps here: %s %d\n", __func__, __LINE__);
 	/* Try to get current msc and timestamp via instant query */
 	vbl.request.type |= drm_waitvblank_pipe(output);
 	ret = drmWaitVBlank(backend->drm.fd, &vbl);
@@ -1357,6 +1367,7 @@ drm_output_start_repaint_loop(struct weston_output *output_base)
 		}
 	}
 
+  weston_log("hkps here: %s %d\n", __func__, __LINE__);
 	/* Immediate query didn't provide valid timestamp.
 	 * Use pageflip fallback.
 	 */
@@ -1375,12 +1386,14 @@ drm_output_start_repaint_loop(struct weston_output *output_base)
 		wl_event_source_timer_update(output->pageflip_timer,
 		                             backend->pageflip_timeout);
 
+  weston_log("hkps here: %s %d\n", __func__, __LINE__);
 	output->fb_last = drm_fb_ref(output->fb_current);
 	output->page_flip_pending = 1;
 
 	return;
 
 finish_frame:
+  weston_log("hkps here: %s %d\n", __func__, __LINE__);
 	/* if we cannot page-flip, immediately finish frame */
 	weston_output_finish_frame(output_base, NULL,
 				   WP_PRESENTATION_FEEDBACK_INVALID);

@@ -58,6 +58,7 @@
 #include "weston.h"
 
 #include "compositor-drm.h"
+#include "compositor-iahwc.h"
 #include "compositor-headless.h"
 #include "compositor-rdp.h"
 #include "compositor-fbdev.h"
@@ -149,6 +150,7 @@ vlog(const char *fmt, va_list ap)
 
 	l = weston_log_timestamp();
 	l += vfprintf(weston_logfile, fmt, ap);
+  fflush(weston_logfile);
 
 	return l;
 }
@@ -534,6 +536,9 @@ usage(int error_code)
 		"  -B, --backend=MODULE\tBackend module, one of\n"
 #if defined(BUILD_DRM_COMPOSITOR)
 			"\t\t\t\tdrm-backend.so\n"
+#endif
+#if defined(BUILD_IAHWC_COMPOSITOR)
+          "\t\t\t\tiahwc-backend.so\n"
 #endif
 #if defined(BUILD_FBDEV_COMPOSITOR)
 			"\t\t\t\tfbdev-backend.so\n"
@@ -1714,6 +1719,101 @@ load_wayland_backend(struct weston_compositor *c,
 	return 0;
 }
 
+static void
+iahwc_backend_output_configure(struct wl_listener *listener, void *data)
+{
+	struct weston_output *output = data;
+	struct weston_config *wc = wet_get_config(output->compositor);
+	struct weston_config_section *section;
+	const struct weston_iahwc_output_api *api = weston_iahwc_output_get_api(output->compositor);
+
+	char *gbm_format = NULL;
+	char *seat = NULL;
+
+	if (!api) {
+		weston_log("Cannot use weston_drm_output_api.\n");
+		return;
+	}
+
+	section = weston_config_get_section(wc, "output", "name", output->name);
+	//XXX/TODO: preferred mode set by iahwc.
+	/* weston_config_section_get_string(section, "mode", &s, "preferred"); */
+
+	/* if (strcmp(s, "off") == 0) { */
+	/* 	weston_output_disable(output); */
+	/* 	free(s); */
+	/* 	return; */
+	/* } else if (wet->drm_use_current_mode || strcmp(s, "current") == 0) { */
+	/* 	mode = WESTON_DRM_BACKEND_OUTPUT_CURRENT; */
+	/* } else if (strcmp(s, "preferred") != 0) { */
+	/* 	modeline = s; */
+	/* 	s = NULL; */
+	/* } */
+	/* free(s); */
+
+	if (api->set_mode(output, WESTON_DRM_BACKEND_OUTPUT_CURRENT, NULL) < 0) {
+		weston_log("Cannot configure an output using weston_drm_output_api.\n");
+		return;
+	}
+
+	wet_output_set_scale(output, section, 1, 0);
+	wet_output_set_transform(output, section, WL_OUTPUT_TRANSFORM_NORMAL, UINT32_MAX);
+
+	weston_config_section_get_string(section,
+					 "gbm-format", &gbm_format, NULL);
+
+	api->set_gbm_format(output, gbm_format);
+	free(gbm_format);
+
+	weston_config_section_get_string(section, "seat", &seat, "");
+
+	api->set_seat(output, seat);
+	free(seat);
+
+	weston_output_enable(output);
+}
+
+static int
+load_iahwc_backend(struct weston_compositor *c,
+		 int *argc, char **argv, struct weston_config *wc)
+{
+	struct weston_iahwc_backend_config config = {{ 0, }};
+	struct weston_config_section *section;
+	struct wet_compositor *wet = to_wet_compositor(c);
+	int ret = 0;
+
+	wet->drm_use_current_mode = false;
+
+	const struct weston_option options[] = {
+		{ WESTON_OPTION_STRING, "seat", 0, &config.seat_id },
+		{ WESTON_OPTION_INTEGER, "tty", 0, &config.tty },
+		{ WESTON_OPTION_BOOLEAN, "current-mode", 0, &wet->drm_use_current_mode },
+		{ WESTON_OPTION_BOOLEAN, "use-pixman", 0, &config.use_pixman },
+	};
+
+	parse_options(options, ARRAY_LENGTH(options), argc, argv);
+
+	section = weston_config_get_section(wc, "core", NULL, NULL);
+	weston_config_section_get_string(section,
+					 "gbm-format", &config.gbm_format,
+					 NULL);
+	weston_config_section_get_uint(section, "pageflip-timeout",
+	                               &config.pageflip_timeout, 0);
+
+	config.base.struct_version = WESTON_IAHWC_BACKEND_CONFIG_VERSION;
+	config.base.struct_size = sizeof(struct weston_iahwc_backend_config);
+	config.configure_device = configure_input_device;
+
+	ret = weston_compositor_load_backend(c, WESTON_BACKEND_IAHWC,
+					     &config.base);
+
+	wet_set_pending_output_handler(c, iahwc_backend_output_configure);
+
+	free(config.gbm_format);
+	free(config.seat_id);
+
+	return ret;
+}
 
 static int
 load_backend(struct weston_compositor *compositor, const char *backend,
@@ -1727,6 +1827,8 @@ load_backend(struct weston_compositor *compositor, const char *backend,
 		return load_fbdev_backend(compositor, argc, argv, config);
 	else if (strstr(backend, "drm-backend.so"))
 		return load_drm_backend(compositor, argc, argv, config);
+	else if (strstr(backend, "iahwc-backend.so"))
+		return load_iahwc_backend(compositor, argc, argv, config);
 	else if (strstr(backend, "x11-backend.so"))
 		return load_x11_backend(compositor, argc, argv, config);
 	else if (strstr(backend, "wayland-backend.so"))
