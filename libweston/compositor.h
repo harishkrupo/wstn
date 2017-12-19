@@ -1486,6 +1486,8 @@ struct weston_surface {
 
 	/* An list of per seat pointer constraints. */
 	struct wl_list pointer_constraints;
+
+	uint8_t hdr_metadata[26];
 };
 
 struct weston_subsurface {
@@ -2348,6 +2350,7 @@ weston_debug_compositor_destroy(struct weston_compositor *compositor);
 void
 weston_buffer_send_server_error(struct weston_buffer *buffer,
 				      const char *msg);
+int weston_hdr_metadata_setup(struct weston_compositor *compositor);
 
 #ifdef  __cplusplus
 }

@@ -7437,6 +7437,10 @@ drm_backend_create(struct weston_compositor *compositor,
 				   "support failed.\n");
 	}
 
+	if (weston_hdr_metadata_setup(compositor) < 0)
+		weston_log("Error: initializing hdr metadata "
+			   "support failed.\n");
+
 	ret = weston_plugin_api_register(compositor, WESTON_DRM_OUTPUT_API_NAME,
 					 &api, sizeof(api));
 

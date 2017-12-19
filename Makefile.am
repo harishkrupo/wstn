@@ -76,6 +76,7 @@ libweston_@LIBWESTON_MAJOR@_la_SOURCES =			\
 	libweston/compositor-rdp.h			\
 	libweston/compositor-wayland.h			\
 	libweston/compositor-x11.h			\
+	libweston/hdr_metadata.c			\
 	libweston/input.c				\
 	libweston/data-device.c				\
 	libweston/screenshooter.c			\
@@ -99,6 +100,8 @@ libweston_@LIBWESTON_MAJOR@_la_SOURCES =			\
 	libweston/weston-debug.c			\
 	libweston/weston-debug.h			\
 	shared/helpers.h				\
+	shared/hdr_metadata.c				\
+	shared/hdr_metadata.h				\
 	shared/matrix.c					\
 	shared/matrix.h					\
 	shared/timespec-util.h				\
@@ -170,6 +173,8 @@ nodist_libweston_@LIBWESTON_MAJOR@_la_SOURCES =				\
 	protocol/viewporter-server-protocol.h		\
 	protocol/linux-dmabuf-unstable-v1-protocol.c	\
 	protocol/linux-dmabuf-unstable-v1-server-protocol.h		\
+	protocol/hdr-metadata-unstable-v1-protocol.c			\
+	protocol/hdr-metadata-unstable-v1-server-protocol.h \
 	protocol/relative-pointer-unstable-v1-protocol.c		\
 	protocol/relative-pointer-unstable-v1-server-protocol.h		\
 	protocol/pointer-constraints-unstable-v1-protocol.c		\
