@@ -1575,32 +1575,42 @@ drm_output_prepare_overlay_view(struct drm_output *output,
 	uint32_t format;
 	wl_fixed_t sx1, sy1, sx2, sy2;
 
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
 	if (b->sprites_are_broken)
 		return NULL;
 
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
 	/* Don't import buffers which span multiple outputs. */
 	if (ev->output_mask != (1u << output->base.id))
 		return NULL;
 
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
 	/* We can only import GBM buffers. */
 	if (b->gbm == NULL)
 		return NULL;
 
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
 	if (ev->surface->buffer_ref.buffer == NULL)
 		return NULL;
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
 	buffer_resource = ev->surface->buffer_ref.buffer->resource;
 	if (wl_shm_buffer_get(buffer_resource))
 		return NULL;
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
 
 	if (viewport->buffer.transform != output->base.transform)
 		return NULL;
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
 	if (viewport->buffer.scale != output->base.current_scale)
 		return NULL;
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
 	if (!drm_view_transform_supported(ev))
 		return NULL;
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
 
 	if (ev->alpha != 1.0f)
 		return NULL;
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
 
 	wl_list_for_each(p, &b->plane_list, link) {
 		if (p->type != WDRM_PLANE_TYPE_OVERLAY)
@@ -1618,6 +1628,7 @@ drm_output_prepare_overlay_view(struct drm_output *output,
 	/* No sprites available */
 	if (!found)
 		return NULL;
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
 
 	if ((dmabuf = linux_dmabuf_buffer_get(buffer_resource))) {
 #ifdef HAVE_GBM_FD_IMPORT
@@ -1649,11 +1660,13 @@ drm_output_prepare_overlay_view(struct drm_output *output,
                     dmabuf->attributes.offset[0] != 0 ||
 		    dmabuf->attributes.flags)
 			return NULL;
+    weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
 
 		bo = gbm_bo_import(b->gbm, GBM_BO_IMPORT_FD, &gbm_dmabuf,
 				   GBM_BO_USE_SCANOUT);
 #else
 		return NULL;
+    weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
 #endif
 	} else {
 		bo = gbm_bo_import(b->gbm, GBM_BO_IMPORT_WL_BUFFER,
@@ -1661,18 +1674,21 @@ drm_output_prepare_overlay_view(struct drm_output *output,
 	}
 	if (!bo)
 		return NULL;
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
 
 	format = drm_output_check_plane_format(p, ev, bo);
 	if (format == 0) {
 		gbm_bo_destroy(bo);
 		return NULL;
 	}
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
 
 	p->fb_pending = drm_fb_get_from_bo(bo, b, format, BUFFER_CLIENT);
 	if (!p->fb_pending) {
 		gbm_bo_destroy(bo);
 		return NULL;
 	}
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
 
 	drm_fb_set_buffer(p->fb_pending, ev->surface->buffer_ref.buffer);
 
@@ -1914,6 +1930,24 @@ drm_assign_planes(struct weston_output *output_base, void *repaint_data)
 		 * renderer and since the pixman renderer keeps a reference
 		 * to the buffer anyway, there is no side effects.
 		 */
+    weston_log("hkps surface dimensions %dx%d\n", es->width, es->height);
+    pixman_box32_t *box = pixman_region32_extents(&ev->transform.boundingbox);
+    weston_log("hkps surface location (%d,%d) and (%d,%d)\n", box->x1, box->y1, box->x2, box->y2);
+    weston_log("hkps view geometry %f %f\n", ev->geometry.x, ev->geometry.y);
+
+    if (ev->surface->buffer_ref.buffer != NULL) {
+      weston_log("hkps buffer type is: ");
+      if (wl_shm_buffer_get(es->buffer_ref.buffer->resource))
+        weston_log_continue("SHM\n");
+      else if (linux_dmabuf_buffer_get(es->buffer_ref.buffer->resource))
+        weston_log_continue("DMA BUF\n");
+      else
+        weston_log_continue("EGL (maybe)\n");
+    }
+    else {
+      weston_log("hkps buffer is NULL\n");
+    }
+
 		if (b->use_pixman ||
 		    (es->buffer_ref.buffer &&
 		    (!wl_shm_buffer_get(es->buffer_ref.buffer->resource) ||

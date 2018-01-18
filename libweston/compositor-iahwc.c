@@ -33,6 +33,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <signal.h>
 #include <linux/input.h>
 #include <linux/vt.h>
 #include <assert.h>
@@ -211,15 +212,19 @@ struct iahwc_output {
 
   int64_t primary_layer_id;
   int64_t cursor_layer_id;
+  int64_t overlay_layer_id;
+
   struct gbm_bo* bo;
 
   struct gbm_bo *gbm_cursor_bo[2];
 	struct weston_plane cursor_plane;
+	struct weston_plane d_plane;
 	struct weston_view *cursor_view;
 	int current_cursor;
 
 	struct gbm_surface *gbm_surface;
 	uint32_t gbm_format;
+  struct gbm_bo* overlay_bo;
 
 	/* Plane for a fullscreen direct scanout view */
 	struct weston_plane scanout_plane;
@@ -952,8 +957,9 @@ iahwc_output_prepare_cursor_view(struct iahwc_output *output,
 	struct wl_shm_buffer *shmbuf;
 	float x, y;
 	struct weston_buffer *buffer = ev->surface->buffer_ref.buffer;
-	uint32_t buf[b->cursor_width * b->cursor_height];
+	uint32_t *buf;
 	int32_t stride;
+  uint32_t rstride;
 	uint8_t *s;
 	int i;
   struct gbm_bo* bo;
@@ -1004,23 +1010,43 @@ iahwc_output_prepare_cursor_view(struct iahwc_output *output,
                              IAHWC_LAYER_USAGE_CURSOR);
   }
 
-  memset(buf, 0, sizeof buf);
+  int32_t surfwidth = ev->surface->width;
+  int32_t surfheight = ev->surface->height;
+
+  bo = gbm_bo_create(b->gbm, surfwidth, surfheight,
+                     GBM_FORMAT_ARGB8888,
+                     GBM_BO_USE_CURSOR | GBM_BO_USE_WRITE);
+
+  if (!bo) {
+    weston_log("unable to create bo for cursor %d %s\n", errno, strerror(errno));
+    raise(SIGSEGV);
+  }
+
+  weston_log("bo %p width %d height %d stride_ptr %p buf %p\n", bo, surfwidth, surfheight, &rstride, &buf);
+  /* void *retaddr = gbm_bo_map(bo, 0, 0, surfwidth, surfheight, GBM_BO_TRANSFER_WRITE, &rstride, &buf); */
+
+  /* if (!retaddr) { */
+  /*   weston_log("hkps unable to map buffer %d %s\n", errno, strerror(errno)); */
+  /*   raise(SIGSEGV); */
+  /* } */
+
 	stride = wl_shm_buffer_get_stride(buffer->shm_buffer);
+  buf = calloc(stride*surfheight, sizeof(char));
 	s = wl_shm_buffer_get_data(buffer->shm_buffer);
 
 	wl_shm_buffer_begin_access(buffer->shm_buffer);
 	for (i = 0; i < ev->surface->height; i++)
-		memcpy(buf + i * b->cursor_width,
+		memcpy(buf + i * surfwidth,
 		       s + i * stride,
 		       ev->surface->width * 4);
 	wl_shm_buffer_end_access(buffer->shm_buffer);
 
-  output->current_cursor ^= 1;
-  bo = output->gbm_cursor_bo[output->current_cursor];
-	if (gbm_bo_write(bo, buf, sizeof buf) < 0)
-		weston_log("failed update cursor: %m\n");
+	if (gbm_bo_write(bo, buf, stride*surfheight) < 0) {
+		weston_log("hkps failed update cursor: %d %s %m\n", errno, strerror(errno));
+    raise(SIGSEGV);
+  }
 
-  weston_log("hkps setting bo %d for cursor layer\n");
+  weston_log("hkps setting bo %p for cursor layer\n", bo);
   b->iahwc_layer_set_bo(b->iahwc_device, 0, output->cursor_layer_id, bo);
 
   iahwc_rect_t source_crop = {0,
@@ -1041,7 +1067,207 @@ iahwc_output_prepare_cursor_view(struct iahwc_output *output,
   b->iahwc_layer_set_display_frame(b->iahwc_device, 0, output->cursor_layer_id, display_frame);
   b->iahwc_layer_set_surface_damage(b->iahwc_device, 0, output->cursor_layer_id, damage_region);
 
+  output->gbm_cursor_bo[0] = bo;
+
 	return &output->cursor_plane;
+}
+
+static struct weston_plane *
+iahwc_output_prepare_overlay_view(struct iahwc_output *output,
+				struct weston_view *ev)
+{
+	struct weston_compositor *ec = output->base.compositor;
+	struct iahwc_backend *b = to_iahwc_backend(ec);
+	struct weston_buffer_viewport *viewport = &ev->surface->buffer_viewport;
+	struct wl_resource *buffer_resource;
+	struct weston_plane *p = &output->d_plane;
+	struct linux_dmabuf_buffer *dmabuf;
+	int found = 0;
+	struct gbm_bo *bo;
+	pixman_region32_t dest_rect, src_rect;
+	pixman_box32_t *box, tbox;
+	uint32_t format;
+	wl_fixed_t sx1, sy1, sx2, sy2;
+	int32_t src_x, src_y;
+	uint32_t src_w, src_h;
+	uint32_t dest_x, dest_y;
+	uint32_t dest_w, dest_h;
+
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
+  if (output->overlay_layer_id != -1)
+    return NULL;
+
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
+	/* Don't import buffers which span multiple outputs. */
+	if (ev->output_mask != (1u << output->base.id))
+		return NULL;
+
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
+	/* We can only import GBM buffers. */
+	if (b->gbm == NULL)
+		return NULL;
+
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
+	if (ev->surface->buffer_ref.buffer == NULL)
+		return NULL;
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
+	buffer_resource = ev->surface->buffer_ref.buffer->resource;
+	if (wl_shm_buffer_get(buffer_resource))
+		return NULL;
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
+	if (viewport->buffer.transform != output->base.transform)
+		return NULL;
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
+	if (viewport->buffer.scale != output->base.current_scale)
+		return NULL;
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
+	if (ev->alpha != 1.0f)
+		return NULL;
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
+
+	if ((dmabuf = linux_dmabuf_buffer_get(buffer_resource))) {
+    weston_log("hkps importing dma buffer\n");
+#ifdef HAVE_GBM_FD_IMPORT
+    weston_log("hkps have fd import\n");
+		/* XXX: TODO:
+		 *
+		 * Use AddFB2 directly, do not go via GBM.
+		 * Add support for multiplanar formats.
+		 * Both require refactoring in the IAHWC-backend to
+		 * support a mix of gbm_bos and iahwcfbs.
+		 */
+		struct gbm_import_fd_data gbm_dmabuf = {
+			.fd     = dmabuf->attributes.fd[0],
+			.width  = dmabuf->attributes.width,
+			.height = dmabuf->attributes.height,
+			.stride = dmabuf->attributes.stride[0],
+			.format = dmabuf->attributes.format
+		};
+
+    /* XXX: TODO:
+     *
+     * Currently the buffer is rejected if any dmabuf attribute
+     * flag is set.  This keeps us from passing an inverted /
+     * interlaced / bottom-first buffer (or any other type that may
+     * be added in the future) through to an overlay.  Ultimately,
+     * these types of buffers should be handled through buffer
+     * transforms and not as spot-checks requiring specific
+     * knowledge. */
+		if (dmabuf->attributes.n_planes != 1 ||
+                    dmabuf->attributes.offset[0] != 0 ||
+		    dmabuf->attributes.flags)
+			return NULL;
+    weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
+
+		bo = gbm_bo_import(b->gbm, GBM_BO_IMPORT_FD, &gbm_dmabuf,
+				   GBM_BO_USE_SCANOUT);
+#else
+    weston_log("hkps don't have fd import\n");
+		return NULL;
+#endif
+	} else {
+    weston_log("hkps importing wl buffer %p\n", buffer_resource);
+		bo = gbm_bo_import(b->gbm, GBM_BO_IMPORT_WL_BUFFER,
+				   buffer_resource, GBM_BO_USE_SCANOUT);
+	}
+  weston_log("hkps bo imported %p %d %s\n", bo, errno, strerror(errno));
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
+
+	if (!bo)
+		return NULL;
+  weston_log("hkps %s:%d\n", __FUNCTION__, __LINE__);
+
+	box = pixman_region32_extents(&ev->transform.boundingbox);
+	p->x = box->x1;
+	p->y = box->y1;
+
+	/*
+	 * Calculate the source & dest rects properly based on actual
+	 * position (note the caller has called weston_view_update_transform()
+	 * for us already).
+	 */
+	pixman_region32_init(&dest_rect);
+	pixman_region32_intersect(&dest_rect, &ev->transform.boundingbox,
+				  &output->base.region);
+	pixman_region32_translate(&dest_rect, -output->base.x, -output->base.y);
+	box = pixman_region32_extents(&dest_rect);
+	tbox = weston_transformed_rect(output->base.width,
+				       output->base.height,
+				       output->base.transform,
+				       output->base.current_scale,
+				       *box);
+	dest_x = tbox.x1;
+	dest_y = tbox.y1;
+	dest_w = tbox.x2 - tbox.x1;
+	dest_h = tbox.y2 - tbox.y1;
+	pixman_region32_fini(&dest_rect);
+
+	pixman_region32_init(&src_rect);
+	pixman_region32_intersect(&src_rect, &ev->transform.boundingbox,
+				  &output->base.region);
+	box = pixman_region32_extents(&src_rect);
+
+	weston_view_from_global_fixed(ev,
+				      wl_fixed_from_int(box->x1),
+				      wl_fixed_from_int(box->y1),
+				      &sx1, &sy1);
+	weston_view_from_global_fixed(ev,
+				      wl_fixed_from_int(box->x2),
+				      wl_fixed_from_int(box->y2),
+				      &sx2, &sy2);
+
+	if (sx1 < 0)
+		sx1 = 0;
+	if (sy1 < 0)
+		sy1 = 0;
+	if (sx2 > wl_fixed_from_int(ev->surface->width))
+		sx2 = wl_fixed_from_int(ev->surface->width);
+	if (sy2 > wl_fixed_from_int(ev->surface->height))
+		sy2 = wl_fixed_from_int(ev->surface->height);
+
+	tbox.x1 = sx1;
+	tbox.y1 = sy1;
+	tbox.x2 = sx2;
+	tbox.y2 = sy2;
+
+	tbox = weston_transformed_rect(wl_fixed_from_int(ev->surface->width),
+				       wl_fixed_from_int(ev->surface->height),
+				       viewport->buffer.transform,
+				       viewport->buffer.scale,
+				       tbox);
+
+	src_x = tbox.x1 << 8;
+	src_y = tbox.y1 << 8;
+	src_w = (tbox.x2 - tbox.x1) << 8;
+	src_h = (tbox.y2 - tbox.y1) << 8;
+	pixman_region32_fini(&src_rect);
+
+  b->iahwc_create_layer(b->iahwc_device, 0, &output->overlay_layer_id);
+  b->iahwc_layer_set_usage(b->iahwc_device,
+                           0,
+                           output->overlay_layer_id,
+                           IAHWC_LAYER_USAGE_CURSOR);
+  b->iahwc_layer_set_bo(b->iahwc_device, 0, output->overlay_layer_id, bo);
+  iahwc_rect_t source_crop = {src_x,
+                              src_y,
+                              src_w,
+                              src_h};
+
+  iahwc_rect_t display_frame = {dest_x,
+                                dest_y,
+                                dest_w,
+                                dest_h};
+
+  iahwc_region_t damage_region;
+  damage_region.numRects = 1;
+  damage_region.rects = &source_crop;
+
+  b->iahwc_layer_set_source_crop(b->iahwc_device, 0, output->overlay_layer_id, source_crop);
+  b->iahwc_layer_set_display_frame(b->iahwc_device, 0, output->overlay_layer_id, display_frame);
+  b->iahwc_layer_set_surface_damage(b->iahwc_device, 0, output->overlay_layer_id, damage_region);
+
+  output->overlay_bo = bo;
+	return p;
 }
 
 /**
@@ -1213,7 +1439,7 @@ iahwc_output_init_egl(struct iahwc_output *output, struct iahwc_backend *b)
 		return -1;
 	}
 
-	iahwc_output_init_cursor_egl(output, b);
+	//iahwc_output_init_cursor_egl(output, b);
 
 	return 0;
 }
@@ -1303,10 +1529,22 @@ iahwc_assign_planes(struct weston_output *output_base, void *repaint_data)
   b->iahwc_display_clear_all_layers(b->iahwc_device, 0);
   output->primary_layer_id = -1;
   output->cursor_layer_id = -1;
+  output->overlay_layer_id = -1;
+  if (output->overlay_bo) {
+    gbm_bo_destroy(output->overlay_bo);
+    output->overlay_bo = NULL;
+  }
+  if (output->gbm_cursor_bo[0]) {
+    gbm_bo_destroy(output->gbm_cursor_bo[0]);
+    output->gbm_cursor_bo[0] = NULL;
+  }
 
 	wl_list_for_each_safe(ev, next, &output_base->compositor->view_list, link) {
 		struct weston_surface *es = ev->surface;
-
+    weston_log("hkps surface dimensions %dx%d\n", es->width, es->height);
+    pixman_box32_t *box = pixman_region32_extents(&ev->transform.boundingbox);
+    weston_log("hkps surface location (%d,%d) and (%d,%d)\n", box->x1, box->y1, box->x2, box->y2);
+    weston_log("hkps view geometry %f %f\n", ev->geometry.x, ev->geometry.y);
 		/* Test whether this buffer can ever go into a plane:
 		 * non-shm, or small enough to be a cursor.
 		 *
@@ -1329,10 +1567,11 @@ iahwc_assign_planes(struct weston_output *output_base, void *repaint_data)
 					  &ev->transform.boundingbox);
 
 		next_plane = NULL;
-		if (pixman_region32_not_empty(&surface_overlap))
-			next_plane = primary;
+		/* if (pixman_region32_not_empty(&surface_overlap)) */
+		/* 	next_plane = primary; */
 		if (next_plane == NULL)
 			next_plane = iahwc_output_prepare_cursor_view(output, ev);
+      /* next_plane = iahwc_output_prepare_overlay_view(output, ev); */
 		if (next_plane == NULL)
 			next_plane = primary;
 
@@ -1575,6 +1814,8 @@ iahwc_output_enable(struct weston_output *base)
 
 	weston_plane_init(&output->cursor_plane, b->compositor,
 			  INT32_MIN, INT32_MIN);
+	weston_plane_init(&output->d_plane, b->compositor,
+                    INT32_MIN, INT32_MIN);
 	weston_plane_init(&output->scanout_plane, b->compositor, 0, 0);
 
 	weston_compositor_stack_plane(b->compositor, &output->cursor_plane, NULL);
@@ -1958,7 +2199,8 @@ iahwc_backend_create(struct weston_compositor *compositor,
   iahwc_module_t* iahwc_module;
   iahwc_device_t* iahwc_device;
 
-  const char* device = "/dev/dri/renderD128";
+  /* const char* device = "/dev/dri/renderD128"; */
+  const char* device = "/dev/dri/card0";
 	const char *seat_id = default_seat;
 
 	weston_log("initializing iahwc backend\n");
@@ -2038,7 +2280,20 @@ iahwc_backend_create(struct weston_compositor *compositor,
 	if (parse_gbm_format(config->gbm_format, GBM_FORMAT_XRGB8888, &b->gbm_format) < 0)
       goto err_compositor;
 
-  b->iahwc.fd = open(device, O_RDWR);
+	// Check if we run drm-backend using weston-launch
+	compositor->launcher = weston_launcher_connect(compositor, config->tty,
+                                                 seat_id, true);
+	if (compositor->launcher == NULL) {
+    weston_log("fatal: drm backend should be run "
+               "using weston-launch binary or as root\n");
+    goto err_compositor;
+	}
+
+  b->iahwc.fd = weston_launcher_open(b->compositor->launcher, device, O_RDWR);
+  if (b->iahwc.fd < 0) {
+    weston_log("unable to open gpu file\n");
+    goto err_compositor;
+  }
 
 	b->udev = udev_new();
 	if (b->udev == NULL) {
@@ -2046,21 +2301,8 @@ iahwc_backend_create(struct weston_compositor *compositor,
 		goto err_compositor;
 	}
 
-  if (b->iahwc.fd < 0) {
-    printf("unable to open gpu file\n");
-    exit(EXIT_FAILURE);
-  }
 	if (config->seat_id)
       seat_id = config->seat_id;
-
-	// Check if we run drm-backend using weston-launch
-	compositor->launcher = weston_launcher_connect(compositor, config->tty,
-                                                 seat_id, true);
-	if (compositor->launcher == NULL) {
-      weston_log("fatal: drm backend should be run "
-                 "using weston-launch binary or as root\n");
-      goto err_compositor;
-	}
 
 	if (create_outputs(b) < 0) {
 		weston_log("failed to create output");
