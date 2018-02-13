@@ -1691,6 +1691,7 @@ weston_compositor_create(struct wl_display *display, void *user_data);
 
 enum weston_compositor_backend {
 	WESTON_BACKEND_DRM,
+	WESTON_BACKEND_IAHWC,
 	WESTON_BACKEND_FBDEV,
 	WESTON_BACKEND_HEADLESS,
 	WESTON_BACKEND_RDP,
