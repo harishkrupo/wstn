@@ -84,6 +84,7 @@ libweston_@LIBWESTON_MAJOR@_la_SOURCES =			\
 	libweston/compositor.c				\
 	libweston/compositor.h				\
 	libweston/compositor-drm.h			\
+	libwestor/compositor-iahwc.h			\
 	libweston/compositor-fbdev.h			\
 	libweston/compositor-headless.h			\
 	libweston/compositor-rdp.h			\
@@ -294,6 +295,7 @@ libwestoninclude_HEADERS =			\
 	libweston/version.h			\
 	libweston/compositor.h			\
 	libweston/compositor-drm.h		\
+	libweston/compositor-iahwc.h		\
 	libweston/compositor-fbdev.h		\
 	libweston/compositor-headless.h		\
 	libweston/compositor-rdp.h		\
@@ -398,6 +400,32 @@ drm_backend_la_LIBADD += $(LIBVA_LIBS)
 drm_backend_la_LDFLAGS += -pthread
 drm_backend_la_CFLAGS += $(LIBVA_CFLAGS)
 endif
+endif
+
+if ENABLE_IAHWC_COMPOSITOR
+libweston_module_LTLIBRARIES += iahwc-backend.la
+iahwc_backend_la_LDFLAGS = -module -avoid-version
+iahwc_backend_la_LIBADD =				\
+	libsession-helper.la			\
+	libweston-@LIBWESTON_MAJOR@.la		\
+	$(COMPOSITOR_LIBS)			\
+	$(DRM_COMPOSITOR_LIBS)			\
+	$(INPUT_BACKEND_LIBS)			\
+	libshared.la				\
+	$(CLOCK_GETTIME_LIBS)
+iahwc_backend_la_CFLAGS =				\
+	$(COMPOSITOR_CFLAGS)			\
+	$(EGL_CFLAGS)				\
+	$(IAHWC_COMPOSITOR_CFLAGS)		\
+	$(AM_CFLAGS)
+iahwc_backend_la_SOURCES =			\
+	libweston/compositor-iahwc.c		\
+	libweston/compositor-iahwc.h		\
+	$(INPUT_BACKEND_SOURCES)		\
+	shared/helpers.h			\
+	shared/timespec-util.h			\
+	libweston/libbacklight.c		\
+	libweston/libbacklight.h
 endif
 
 if ENABLE_WAYLAND_COMPOSITOR
