@@ -225,6 +225,9 @@ PKG_CHECK_MODULES(IAHWC_COMPOSITOR_GBM, [gbm >= 10.2],
 [AC_MSG_WARN([gbm does not support dmabuf import, will omit that capability])])
 fi
 
+AC_ARG_ENABLE([iahwc-overlays], [  --enable-iahwc-overlays], [enable_iahwc_overlays="$enableval"], [enable_iahwc_overlays=yes])
+AM_CONDITIONAL(IAHWC_DISABLE_OVERLAYS, test "x$enable_iahwc_overlays" = xno)
+
 PKG_CHECK_MODULES(LIBINPUT_BACKEND, [libinput >= 0.8.0])
 PKG_CHECK_MODULES(COMPOSITOR, [$COMPOSITOR_MODULES])
 
@@ -722,6 +725,8 @@ AC_MSG_RESULT([
 	RDP Compositor			${enable_rdp_compositor}
 	Screen Sharing			${enable_screen_sharing}
 	JUnit XML output		${enable_junit_xml}
+
+	IAHWC OVERLAYS			${enable_iahwc_overlays}
 
 	Build Clients			${enable_clients}
 	Build EGL Clients		${have_cairo_egl}

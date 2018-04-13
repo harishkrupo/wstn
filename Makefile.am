@@ -430,6 +430,12 @@ iahwc_backend_la_SOURCES =			\
 	shared/timespec-util.h			\
 	libweston/libbacklight.c		\
 	libweston/libbacklight.h
+
+if IAHWC_DISABLE_OVERLAYS
+$(error "overlays disabled")
+iahwc_backend_la_CFLAGS += -DIAHWC_DISABLE_OVERLAYS
+endif
+
 endif
 
 if ENABLE_WAYLAND_COMPOSITOR
