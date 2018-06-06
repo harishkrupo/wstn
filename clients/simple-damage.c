@@ -61,6 +61,11 @@ struct buffer {
 	struct wl_buffer *buffer;
 	uint32_t *shm_data;
 	int busy;
+	bool first_time;
+	int prev_damage_x;
+	int prev_damage_y;
+	int prev_damage_width;
+	int prev_damage_height;
 };
 
 enum window_flags {
@@ -414,6 +419,7 @@ window_next_buffer(struct window *window)
 		ret = create_shm_buffer(window->display, buffer,
 					bwidth, bheight,
 					WL_SHM_FORMAT_ARGB8888);
+		buffer->first_time = true;
 
 		if (ret < 0)
 			return NULL;
@@ -604,35 +610,52 @@ redraw(void *data, struct wl_callback *callback, uint32_t time)
 				       wl_fixed_from_int(window->height / 2));
 	}
 
-	/* Paint the border */
-	paint_box(buffer->shm_data, bpitch, off_x, off_y,
-		  bwidth, bborder, 0xffffffff);
-	paint_box(buffer->shm_data, bpitch, off_x, off_y,
-		  bborder, bheight, 0xffffffff);
-	paint_box(buffer->shm_data, bpitch, off_x + bwidth - bborder, off_y,
-		  bborder, bheight, 0xffffffff);
-	paint_box(buffer->shm_data, bpitch, off_x, off_y + bheight - bborder,
-		  bwidth, bborder, 0xffffffff);
+	if (buffer->first_time) {
+		/* Paint the border */
+		paint_box(buffer->shm_data, bpitch, off_x, off_y,
+							bwidth, bborder, 0xffffffff);
+		paint_box(buffer->shm_data, bpitch, off_x, off_y,
+							bborder, bheight, 0xffffffff);
+		paint_box(buffer->shm_data, bpitch, off_x + bwidth - bborder, off_y,
+							bborder, bheight, 0xffffffff);
+		paint_box(buffer->shm_data, bpitch, off_x, off_y + bheight - bborder,
+							bwidth, bborder, 0xffffffff);
 
-	/* fill with translucent */
-	paint_box(buffer->shm_data, bpitch, off_x + bborder, off_y + bborder,
-		  bwidth - 2 * bborder, bheight - 2 * bborder, 0x80000000);
+		/* fill with translucent */
+		paint_box(buffer->shm_data, bpitch, off_x + bborder, off_y + bborder,
+							bwidth - 2 * bborder, bheight - 2 * bborder, 0x80000000);
 
-	/* Damage where the ball was */
-	if (window->flags & WINDOW_FLAG_USE_DAMAGE_BUFFER) {
-		window_get_transformed_ball(window, &bx, &by);
-		wl_surface_damage_buffer(window->surface,
-					 bx - bradius + off_x,
-					 by - bradius + off_y,
-					 bradius * 2 + 1,
-					 bradius * 2 + 1);
+		/* damage the whole surface to ensure */
+		if (window->flags & WINDOW_FLAG_USE_DAMAGE_BUFFER) {
+			wl_surface_damage_buffer(window->surface, 0, 0,
+					INT32_MAX, INT32_MAX);
+		} else {
+			wl_surface_damage(window->surface, 0, 0, INT32_MAX, INT32_MAX);
+		}
+
 	} else {
-		wl_surface_damage(window->surface,
-				  window->ball.x - window->ball.radius,
-				  window->ball.y - window->ball.radius,
-				  window->ball.radius * 2 + 1,
-				  window->ball.radius * 2 + 1);
+
+		/* fill only the previous location of the ball with translucent */
+		paint_box(buffer->shm_data, bpitch, buffer->prev_damage_x,
+				buffer->prev_damage_y, buffer->prev_damage_width,
+				buffer->prev_damage_height, 0x80000000);
+
+		/* Damage where the ball was on the buffer*/
+		if (window->flags & WINDOW_FLAG_USE_DAMAGE_BUFFER) {
+			wl_surface_damage_buffer(window->surface,
+					buffer->prev_damage_x,
+					buffer->prev_damage_y,
+					buffer->prev_damage_width,
+					buffer->prev_damage_height);
+		} else {
+			wl_surface_damage(window->surface,
+					buffer->prev_damage_x,
+					buffer->prev_damage_y,
+					buffer->prev_damage_width,
+					buffer->prev_damage_height);
+		}
 	}
+
 	window_advance_game(window, time);
 
 	window_get_transformed_ball(window, &bx, &by);
@@ -661,12 +684,20 @@ redraw(void *data, struct wl_callback *callback, uint32_t time)
 					 by - bradius + off_y,
 					 bradius * 2 + 1,
 					 bradius * 2 + 1);
+		buffer->prev_damage_x = bx - bradius + off_x;
+		buffer->prev_damage_y = by - bradius + off_y;
+		buffer->prev_damage_width = bradius * 2 + 1;
+		buffer->prev_damage_height = bradius * 2 + 1;
 	} else {
 		wl_surface_damage(window->surface,
 				  window->ball.x - window->ball.radius,
 				  window->ball.y - window->ball.radius,
 				  window->ball.radius * 2 + 1,
 				  window->ball.radius * 2 + 1);
+		buffer->prev_damage_x = window->ball.x - window->ball.radius;
+		buffer->prev_damage_y = window->ball.y - window->ball.radius;
+		buffer->prev_damage_width = window->ball.radius * 2 + 1;
+		buffer->prev_damage_height = window->ball.radius * 2 + 1;
 	}
 	wl_surface_attach(window->surface, buffer->buffer, 0, 0);
 
@@ -691,6 +722,7 @@ redraw(void *data, struct wl_callback *callback, uint32_t time)
 	window->callback = wl_surface_frame(window->surface);
 	wl_callback_add_listener(window->callback, &frame_listener, window);
 	wl_surface_commit(window->surface);
+	buffer->first_time = false;
 	buffer->busy = 1;
 }
 
