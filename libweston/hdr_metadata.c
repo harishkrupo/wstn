@@ -54,7 +54,8 @@ hdr_metadata_set_request(struct wl_client *client,
                          uint32_t max_luminance,
                          uint32_t min_luminance,
                          uint32_t max_cll,
-                         uint32_t max_fall)
+                         uint32_t max_fall,
+                         uint32_t eotf)
 {
 	struct weston_surface *surface =
 		wl_resource_get_user_data(surface_resource);
@@ -76,7 +77,7 @@ hdr_metadata_set_request(struct wl_client *client,
 			    min_luminance,
 			    max_cll,
 			    max_fall,
-			    EOTF_ST2084); /* FIXME */
+			    eotf);
 }
 
 static const struct zwp_hdr_metadata_v1_interface
