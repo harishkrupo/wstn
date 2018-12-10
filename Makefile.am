@@ -650,6 +650,14 @@ nodist_weston_simple_egl_SOURCES =		\
 	protocol/ivi-application-client-protocol.h
 weston_simple_egl_CFLAGS = $(AM_CFLAGS) $(SIMPLE_EGL_CLIENT_CFLAGS)
 weston_simple_egl_LDADD = $(SIMPLE_EGL_CLIENT_LIBS) -lm
+
+demo_clients += weston-hdr-test
+weston_hdr_test_SOURCES = clients/hdr-test.c
+nodist_weston_hdr_test_SOURCES = \
+	protocol/hdr-metadata-unstable-v1-protocol.c \
+	protocol/hdr-metadata-unstable-v1-client-protocol.h
+weston_hdr_test_CFLAGS = $(AM_CFLAGS) $(SIMPLE_EGL_CLIENT_CFLAGS)
+weston_hdr_test_LDADD = $(SIMPLE_EGL_CLIENT_LIBS) -lm
 endif
 
 if BUILD_SIMPLE_DMABUF_DRM_CLIENT
@@ -960,7 +968,9 @@ BUILT_SOURCES +=					\
 	protocol/input-timestamps-unstable-v1-protocol.c		\
 	protocol/input-timestamps-unstable-v1-client-protocol.h		\
 	protocol/xdg-output-unstable-v1-protocol.c			\
-	protocol/xdg-output-unstable-v1-client-protocol.h
+	protocol/xdg-output-unstable-v1-client-protocol.h \
+	protocol/hdr-metadata-unstable-v1-protocol.c \
+	protocol/hdr-metadata-unstable-v1-client-protocol.h
 
 westondatadir = $(datadir)/weston
 dist_westondata_DATA =				\

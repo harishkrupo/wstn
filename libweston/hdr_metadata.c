@@ -59,25 +59,25 @@ hdr_metadata_set_request(struct wl_client *client,
 {
 	struct weston_surface *surface =
 		wl_resource_get_user_data(surface_resource);
+  weston_log("Received hdr set request for surface: %p r (%d %d) br (%d %d)  r (%d %d)  r (%d %d) maxl %d minl %d maxc %d maxf %d eotf %d\n", surface, display_primary_r_x, display_primary_r_y, display_primary_b_x, display_primary_b_y, display_primary_g_x, display_primary_g_y, white_point_x, white_point_y, max_luminance, min_luminance, max_cll, max_fall, eotf);
 
-	if (surface->hdr_metadata[1]) {
-		return;
-	}
-
-	weston_hdr_metadata(surface->hdr_metadata,
-			    display_primary_r_x,
-			    display_primary_r_y,
-			    display_primary_g_x,
-			    display_primary_g_y,
-			    display_primary_b_x,
-			    display_primary_b_y,
-			    white_point_x,
-			    white_point_y,
-			    max_luminance,
-			    min_luminance,
-			    max_cll,
-			    max_fall,
-			    eotf);
+	/* if (surface->hdr_metadata[1]) { */
+	/* 	return; */
+	/* } */
+	/* weston_hdr_metadata(surface->hdr_metadata, */
+	/* 		    display_primary_r_x, */
+	/* 		    display_primary_r_y, */
+	/* 		    display_primary_g_x, */
+	/* 		    display_primary_g_y, */
+	/* 		    display_primary_b_x, */
+	/* 		    display_primary_b_y, */
+	/* 		    white_point_x, */
+	/* 		    white_point_y, */
+	/* 		    max_luminance, */
+	/* 		    min_luminance, */
+	/* 		    max_cll, */
+	/* 		    max_fall, */
+	/* 		    eotf); */
 }
 
 static const struct zwp_hdr_metadata_v1_interface
