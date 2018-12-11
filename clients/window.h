@@ -613,6 +613,13 @@ widget_schedule_redraw(struct widget *widget);
 void
 widget_set_use_cairo(struct widget *widget, int use_cairo);
 
+/*
+ * Sets the viewport destination for the widget's surface
+ * return 0 on success and 1 on failure.
+ */
+int
+widget_set_viewport_destination(struct widget *widget, int width, int height);
+
 struct widget *
 window_frame_create(struct window *window, void *data);
 

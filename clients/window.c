@@ -84,6 +84,8 @@ typedef void *EGLContext;
 
 #include <sys/types.h>
 #include "ivi-application-client-protocol.h"
+#include "viewporter-client-protocol.h"
+
 #define IVI_SURFACE_ID 9000
 
 #define ZWP_RELATIVE_POINTER_MANAGER_V1_VERSION 1
@@ -149,6 +151,7 @@ struct display {
 
 	int has_rgb565;
 	int data_device_manager_version;
+	struct wp_viewporter *viewporter;
 };
 
 struct window_output {
@@ -224,6 +227,7 @@ struct surface {
 	cairo_surface_t *cairo_surface;
 
 	struct wl_list link;
+	struct wp_viewport *viewport;
 };
 
 struct window {
@@ -326,6 +330,8 @@ struct widget {
 	 * redraw handler is going to do completely custom rendering
 	 * such as using EGL directly */
 	int use_cairo;
+	int viewport_dest_width;
+	int viewport_dest_height;
 };
 
 struct touch_point {
@@ -1397,6 +1403,7 @@ display_get_pointer_image(struct display *display, int pointer)
 static void
 surface_flush(struct surface *surface)
 {
+	struct widget *widget = surface->widget;
 	if (!surface->cairo_surface)
 		return;
 
@@ -1412,6 +1419,12 @@ surface_flush(struct surface *surface)
 					    surface->input_region);
 		wl_region_destroy(surface->input_region);
 		surface->input_region = NULL;
+	}
+
+	if (widget->viewport_dest_width != -1 && widget->viewport_dest_height != -1) {
+		wp_viewport_set_destination(surface->viewport,
+				widget->viewport_dest_width,
+				widget->viewport_dest_height);
 	}
 
 	surface->toysurface->swap(surface->toysurface,
@@ -1621,6 +1634,7 @@ static struct widget *
 widget_find_widget(struct widget *widget, int32_t x, int32_t y)
 {
 	struct widget *child, *target;
+	int width, height;
 
 	wl_list_for_each(child, &widget->child_list, link) {
 		target = widget_find_widget(child, x, y);
@@ -1628,10 +1642,16 @@ widget_find_widget(struct widget *widget, int32_t x, int32_t y)
 			return target;
 	}
 
+	width = (widget->viewport_dest_width != -1) ?
+		widget->viewport_dest_width : widget->allocation.width;
+
+	height = (widget->viewport_dest_height != -1) ?
+		widget->viewport_dest_height : widget->allocation.height;
+
 	if (widget->allocation.x <= x &&
-	    x < widget->allocation.x + widget->allocation.width &&
+	    x < widget->allocation.x + width &&
 	    widget->allocation.y <= y &&
-	    y < widget->allocation.y + widget->allocation.height) {
+	    y < widget->allocation.y + height) {
 		return widget;
 	}
 
@@ -1669,6 +1689,8 @@ widget_create(struct window *window, struct surface *surface, void *data)
 	widget->tooltip_count = 0;
 	widget->default_cursor = CURSOR_LEFT_PTR;
 	widget->use_cairo = 1;
+	widget->viewport_dest_width = -1;
+	widget->viewport_dest_height = -1;
 
 	return widget;
 }
@@ -2024,6 +2046,27 @@ widget_set_use_cairo(struct widget *widget,
 		     int use_cairo)
 {
 	widget->use_cairo = use_cairo;
+}
+
+int
+widget_set_viewport_destination(struct widget *widget, int width, int height) {
+	struct window *window = widget->window;
+	struct display *display = window->display;
+	struct surface *surface = widget->surface;
+	if (!display->viewporter)
+		return 1;
+
+	if (!surface->viewport) {
+		surface->viewport = wp_viewporter_get_viewport(display->viewporter,
+				surface->surface);
+		if (!surface->viewport)
+			return 1;
+	}
+
+	widget->viewport_dest_width = width;
+	widget->viewport_dest_height = height;
+
+	return 0;
 }
 
 cairo_surface_t *
@@ -5128,6 +5171,7 @@ surface_create(struct window *window)
 	wl_surface_add_listener(surface->surface, &surface_listener, window);
 
 	wl_list_insert(&window->subsurface_list, &surface->link);
+	surface->viewport = NULL;
 
 	return surface;
 }
@@ -5967,6 +6011,12 @@ registry_handle_global(void *data, struct wl_registry *registry, uint32_t id,
 		d->ivi_application =
 			wl_registry_bind(registry, id,
 					 &ivi_application_interface, 1);
+	} else if (!strcmp(interface, "wp_viewporter")) {
+		d->viewporter =
+			wl_registry_bind(registry,
+					id,
+					&wp_viewporter_interface,
+					1);
 	}
 
 	if (d->global_handler)
