@@ -77,6 +77,7 @@ libweston_@LIBWESTON_MAJOR@_la_SOURCES =			\
 	libweston/compositor-wayland.h			\
 	libweston/compositor-x11.h			\
 	libweston/hdr_metadata.c			\
+	libweston/colorspace.c                          \
 	libweston/input.c				\
 	libweston/data-device.c				\
 	libweston/screenshooter.c			\
@@ -100,6 +101,8 @@ libweston_@LIBWESTON_MAJOR@_la_SOURCES =			\
 	libweston/weston-debug.c			\
 	libweston/weston-debug.h			\
 	shared/helpers.h				\
+	shared/colorspace.c                             \
+	shared/colorspace.h                             \
 	shared/matrix.c					\
 	shared/matrix.h					\
 	shared/timespec-util.h				\
@@ -180,7 +183,10 @@ nodist_libweston_@LIBWESTON_MAJOR@_la_SOURCES =				\
 	protocol/input-timestamps-unstable-v1-protocol.c		\
 	protocol/input-timestamps-unstable-v1-server-protocol.h		\
 	protocol/weston-touch-calibration-protocol.c			\
-	protocol/weston-touch-calibration-server-protocol.h
+	protocol/weston-touch-calibration-server-protocol.h		\
+	protocol/colorspace-unstable-v1-protocol.c                      \
+	protocol/colorspace-unstable-v1-server-protocol.h
+
 
 BUILT_SOURCES += $(nodist_libweston_@LIBWESTON_MAJOR@_la_SOURCES)
 
