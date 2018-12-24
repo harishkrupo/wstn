@@ -397,6 +397,15 @@ if test x$enable_simple_clients = xyes; then
   PKG_CHECK_MODULES(SIMPLE_CLIENT, [wayland-client])
 fi
 
+AC_ARG_ENABLE(simple-hdr-video-client,
+              AS_HELP_STRING([--disable-simple-hdr-video-client],
+                             [do not build the simple hdr video client]),,
+              enable_simple_hdr_video_client=yes)
+AM_CONDITIONAL(BUILD_SIMPLE_HDR_VIDEO_CLIENT, test "x$enable_simple_hdr_video_client" = "xyes")
+if test x$enable_simple_hdr_video_client = xyes; then
+  PKG_CHECK_MODULES(SIMPLE_HDR_VIDEO_CLIENT, [wayland-client libavformat libavcodec libavutil libdrm])
+fi
+
 AC_ARG_ENABLE(simple-egl-clients,
               AS_HELP_STRING([--disable-simple-egl-clients],
                              [do not build the simple EGL clients]),,

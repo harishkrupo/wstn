@@ -654,6 +654,32 @@ weston_simple_egl_CFLAGS = $(AM_CFLAGS) $(SIMPLE_EGL_CLIENT_CFLAGS)
 weston_simple_egl_LDADD = $(SIMPLE_EGL_CLIENT_LIBS) -lm
 endif
 
+if BUILD_SIMPLE_HDR_VIDEO_CLIENT
+demo_clients += weston-simple-hdr-video
+weston_simple_hdr_video_SOURCES = clients/simple-hdr-video.c \
+				   shared/os-compatibility.c
+
+nodist_weston_simple_hdr_video_SOURCES =				\
+	protocol/xdg-shell-unstable-v6-protocol.c			\
+	protocol/xdg-shell-unstable-v6-client-protocol.h		\
+	protocol/colorspace-unstable-v1-protocol.c			\
+	protocol/colorspace-unstable-v1-client-protocol.h		\
+	protocol/hdr-metadata-unstable-v1-protocol.c			\
+	protocol/hdr-metadata-unstable-v1-client-protocol.h		\
+	protocol/linux-dmabuf-unstable-v1-protocol.c 			\
+	protocol/linux-dmabuf-unstable-v1-client-protocol.h
+
+weston_simple_hdr_video_CFLAGS = $(AM_CFLAGS)				\
+				 $(SIMPLE_HDR_VIDEO_CLIENT_CFLAGS)	\
+				 $(CLIENT_CFLAGS)			\
+				 $(PANGO_CFLAGS)
+weston_simple_hdr_video_LDADD = libtoytoolkit.la			\
+				$(SIMPLE_HDR_VIDEO_CLIENT_LIBS)		\
+				$(LIBDRM_PLATFORM_INTEL_LIBS)    	\
+				$(PANGO_LIBS)				\
+				-lm
+endif
+
 if BUILD_SIMPLE_DMABUF_DRM_CLIENT
 demo_clients += weston-simple-dmabuf-drm
 weston_simple_dmabuf_drm_SOURCES =			\
@@ -976,7 +1002,11 @@ BUILT_SOURCES +=					\
 	protocol/input-timestamps-unstable-v1-protocol.c		\
 	protocol/input-timestamps-unstable-v1-client-protocol.h		\
 	protocol/xdg-output-unstable-v1-protocol.c			\
-	protocol/xdg-output-unstable-v1-client-protocol.h
+	protocol/xdg-output-unstable-v1-client-protocol.h		\
+	protocol/hdr-metadata-unstable-v1-protocol.c			\
+	protocol/hdr-metadata-unstable-v1-client-protocol.h		\
+	protocol/colorspace-unstable-v1-protocol.c			\
+	protocol/colorspace-unstable-v1-client-protocol.h
 
 westondatadir = $(datadir)/weston
 dist_westondata_DATA =				\
