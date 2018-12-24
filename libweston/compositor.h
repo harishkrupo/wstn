@@ -45,6 +45,7 @@ extern "C" {
 #include "config-parser.h"
 #include "zalloc.h"
 #include "timeline-object.h"
+#include "shared/hdr_metadata_defs.h"
 
 struct weston_geometry {
 	int32_t x, y;
@@ -1362,6 +1363,7 @@ struct weston_surface_state {
 	/* wp_viewport.set_source */
 	/* wp_viewport.set_destination */
 	struct weston_buffer_viewport buffer_viewport;
+	struct weston_hdr_metadata *hdr_metadata;
 };
 
 struct weston_surface_activation_data {
@@ -1486,6 +1488,10 @@ struct weston_surface {
 
 	/* An list of per seat pointer constraints. */
 	struct wl_list pointer_constraints;
+
+	struct wl_resource *hdr_surface_resource;
+	struct weston_hdr_metadata *hdr_metadata;
+
 };
 
 struct weston_subsurface {
@@ -2348,6 +2354,7 @@ weston_debug_compositor_destroy(struct weston_compositor *compositor);
 void
 weston_buffer_send_server_error(struct weston_buffer *buffer,
 				      const char *msg);
+int weston_hdr_metadata_setup(struct weston_compositor *compositor);
 
 #ifdef  __cplusplus
 }
